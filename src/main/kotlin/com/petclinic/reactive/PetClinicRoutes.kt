@@ -3,6 +3,7 @@ package com.petclinic.reactive
 import com.petclinic.reactive.handlers.*
 import com.petclinic.reactive.handlers.api.OwnersApiHandler
 import com.petclinic.reactive.handlers.api.PetsApiHandler
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.DependsOn
@@ -20,6 +21,7 @@ class PetClinicRoutes() {
     @DependsOn("petClinicRouter")
     fun resourceRouter() = resources("/**", ClassPathResource("static/"))
 
+    @ExperimentalCoroutinesApi
     @Bean
     fun apiRouter(ownersApiHandler: OwnersApiHandler, petsApiHandler: PetsApiHandler) =
             coRouter {

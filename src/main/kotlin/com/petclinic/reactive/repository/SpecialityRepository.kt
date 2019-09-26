@@ -6,7 +6,7 @@ import org.springframework.data.mongodb.repository.ReactiveMongoRepository
 import org.springframework.stereotype.Repository
 import reactor.core.publisher.Flux
 
-@Repository interface SpecialityRepository : ReactiveMongoRepository<Speciality, String> {
+@Repository interface SpecialityRepository : CoroutinesMongoRepository<Speciality, String> {
 
     fun findAllByName(nameList: Iterable<String>) : Flow<Speciality>
 
