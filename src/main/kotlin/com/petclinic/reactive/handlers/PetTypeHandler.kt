@@ -3,33 +3,35 @@ package com.petclinic.reactive.handlers
 import com.petclinic.reactive.html
 import com.petclinic.reactive.model.PetType
 import com.petclinic.reactive.repository.PetTypeRepository
+import kotlinx.coroutines.flow.toList
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.BodyExtractors
 import org.springframework.web.reactive.function.server.ServerRequest
 import org.springframework.web.reactive.function.server.ServerResponse.ok
+import org.springframework.web.reactive.function.server.awaitFormData
+import org.springframework.web.reactive.function.server.renderAndAwait
 
 @Component
 class PetTypeHandler(val petTypeRepository: PetTypeRepository) {
 
-    fun indexPage(serverRequest: ServerRequest) = indexPage()
+    suspend fun indexPage(serverRequest: ServerRequest) = indexPage()
 
-    fun addPage(serverRequest: ServerRequest) =
-            ok().contentType(MediaType.TEXT_HTML).render("petTypes/add")
+    suspend fun addPage(serverRequest: ServerRequest) =
+            ok().contentType(MediaType.TEXT_HTML).renderAndAwait("petTypes/add")
 
-    fun add(serverRequest: ServerRequest) = serverRequest.body(BodyExtractors.toFormData())
-            .flatMap {
-                val formData = it.toSingleValueMap()
-                petTypeRepository.save(PetType(name = formData["name"]!!))
-            }
-            .then(indexPage())
+    suspend fun add(serverRequest: ServerRequest) =
+        serverRequest.awaitFormData().toSingleValueMap().let {
+            petTypeRepository.save(PetType(name = it["name"]!!))
+            indexPage()
+        }
 
-    fun editPage(serverRequest: ServerRequest) =
+    suspend fun editPage(serverRequest: ServerRequest) =
             petTypeRepository.findById(serverRequest.queryParam("id").orElseThrow{ IllegalArgumentException() })
                     .map { mapOf("id" to it.id, "name" to it.name) }
                     .flatMap { ok().html().render("petTypes/edit", it) }
 
-    fun edit(serverRequest: ServerRequest) =
+    suspend fun edit(serverRequest: ServerRequest) =
             serverRequest.body(BodyExtractors.toFormData())
                     .flatMap {
                         val formData = it.toSingleValueMap()
@@ -37,6 +39,6 @@ class PetTypeHandler(val petTypeRepository: PetTypeRepository) {
                     }
                     .then(indexPage())
 
-    fun indexPage() = ok().html().render("petTypes/index", mapOf("petTypes" to petTypeRepository.findAll()))
+    suspend fun indexPage() = ok().html().renderAndAwait("petTypes/index", mapOf("petTypes" to petTypeRepository.findAll().toList()))
 
 }

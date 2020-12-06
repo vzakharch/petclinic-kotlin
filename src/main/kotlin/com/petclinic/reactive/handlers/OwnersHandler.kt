@@ -1,112 +1,133 @@
 package com.petclinic.reactive.handlers
 
 import com.petclinic.reactive.html
-import com.petclinic.reactive.repository.OwnersRepository
 
 import com.petclinic.reactive.model.Owner
 import com.petclinic.reactive.model.Pet
-import com.petclinic.reactive.model.Visit
+import com.petclinic.reactive.repository.OwnerRepository
 import com.petclinic.reactive.repository.PetRepository
 import com.petclinic.reactive.repository.PetTypeRepository
-import com.petclinic.reactive.repository.collectMultimap
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import com.petclinic.reactive.repository.VisitRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.reduce
-import org.springframework.data.mongodb.core.ReactiveMongoTemplate
-import org.springframework.data.mongodb.core.query.Criteria
-import org.springframework.data.mongodb.core.query.Criteria.*
-import org.springframework.data.mongodb.core.query.Query
-import org.springframework.stereotype.Component
-import org.springframework.web.reactive.function.BodyExtractors
-import org.springframework.web.reactive.function.server.ServerRequest
-import org.springframework.web.reactive.function.server.ServerResponse
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.toSet
+import kotlinx.coroutines.reactive.awaitSingle
+import org.springframework.web.reactive.function.server.*
 import org.springframework.web.reactive.function.server.ServerResponse.ok
-import org.springframework.web.reactive.function.server.awaitBody
-import org.springframework.web.reactive.function.server.renderAndAwait
-import reactor.core.publisher.Mono
-import reactor.util.function.component1
-import reactor.util.function.component2
-import java.util.ArrayList
-import java.util.UUID
+import java.net.URI
 
-@Component
-class OwnersHandler(val ownersRepository: OwnersRepository,
+class OwnersHandler(val ownerRepository: OwnerRepository,
                     val petRepository: PetRepository,
-                    val petTypeRepository: PetTypeRepository,
-                    val mongoTemplate: ReactiveMongoTemplate) {
+                    val visitRepository: VisitRepository,
+                    val petTypeRepository: PetTypeRepository) {
 
-    fun indexPage(serverRequest: ServerRequest) =
-            serverRequest.queryParam("q").filter { it.trim().isNotEmpty() }
-                    .map { indexPageWithQuery(it) }
-                    .orElse(indexPage())
+    suspend fun indexPage(serverRequest: ServerRequest): ServerResponse {
+        val param = serverRequest.queryParam("q").filter { it.trim().isNotEmpty() }
+        return if (param.isPresent) indexPageWithQuery(param.get()) else indexPage()
+    }
 
-    fun addPage(serverRequest: ServerRequest) = ok().html().render("owners/add")
+    suspend fun addPage(serverRequest: ServerRequest) =
+        ok().html().renderAndAwait("owners/add")
 
-    fun editPage(serverRequest: ServerRequest) =
-            serverRequest.queryParam("id")
-                    .map { ownersRepository.findById(it) }
-                    .orElse(Mono.empty<Owner>())
-                    .map {
-                        mapOf("id" to it.id,
-                                "firstName" to it.firstName,
-                                "lastName" to it.lastName,
-                                "address" to it.address,
-                                "city" to it.city,
-                                "telephone" to it.telephone)
-                    }
-                    .flatMap { ok().html().render("owners/edit", it) }
-
-    fun view(serverRequest: ServerRequest) =
-            serverRequest.queryParam("id").map { ownersRepository.findById(it) }.orElse(Mono.empty<Owner>())
-                    .and({ (id) -> petRepository.findAllByOwner(id).collectList() })
-                    .flatMap { (owner, pets) ->
-                        val model = mapOf<String, Any>(
-                                "owner" to owner,
-                                "pets" to pets,
-                                "petTypes" to petTypeRepository.findAll().collectMap({ it.id }, { it.name }),
-                                "petVisits" to petVisits(pets.map { it.id }))
-                        ok().html().render("owners/view", model)
-                    }
-                    .switchIfEmpty(ServerResponse.notFound().build())
-
-    fun petVisits(petIds: List<String>) =
-            mongoTemplate.find(Query(where("petId").`in`(petIds)), Visit::class.java)
-                    .collectMultimap { it.petId }
-
-    suspend fun add(serverRequest: ServerRequest) = serverRequest.body(BodyExtractors.toFormData())
-            .flatMap {
-                val formData = it.toSingleValueMap()
-                ownersRepository.save(Owner(
-                        id = formData["id"] ?: UUID.randomUUID().toString(),
-                        firstName = formData["firstName"]!!,
-                        lastName = formData["lastName"]!!,
-                        address = formData["address"]!!,
-                        telephone = formData["telephone"]!!,
-                        city = formData["city"]!!))
+    suspend fun editPage(serverRequest: ServerRequest): ServerResponse =
+        serverRequest.queryParamOrNull("id")?.toLong()
+            ?.let { ownerRepository.findById(it) }
+            ?.let {
+                mapOf("id" to it.id,
+                    "firstName" to it.firstName,
+                    "lastName" to it.lastName,
+                    "address" to it.address,
+                    "city" to it.city,
+                    "telephone" to it.telephone)
             }
-            .then(indexPage())
+            ?.let { ok().html().renderAndAwait("owners/edit", it) }
+            ?: ok().bodyValueAndAwait(Unit)
 
-    suspend fun edit(serverRequest: ServerRequest) =
-            serverRequest.queryParam("id").map { ownersRepository.findById(it) }.orElse(Mono.empty<Owner>())
-                    .flatMap { ownersRepository.save(it) }
-                    .flatMap { ok().renderAndAwait("owners/edit", it) }
+    suspend fun view(serverRequest: ServerRequest): ServerResponse =
+        serverRequest.queryParamOrNull("id")?.toLong()
+            ?.let { ownerRepository.findById(it) }
+            ?.let { it to petRepository.findAllByOwner(it.id!!).toList() }
+//                    .and({ (id) -> petRepository.findAllByOwner(id).collectList() })
+            ?.let { ownerPets ->
+                val model = mapOf(
+                    "owner" to ownerPets.first,
+                    "pets" to ownerPets.second,
+                    "petTypes" to petTypeRepository.findAll().map { it.id to it.name }.toSet().toMap(),
+                    "petVisits" to petVisits(ownerPets.second.map { it.id!! }))
+                ok().html().renderAndAwait("owners/view", model)
+            }?: ServerResponse.notFound().buildAndAwait()
 
-    @ExperimentalCoroutinesApi
+    suspend fun petVisits(petIds: List<Long>) =
+        visitRepository.findAllByPetIds(petIds)
+            .toList()
+            .groupBy { it.petId }
+
+    suspend fun add(serverRequest: ServerRequest): ServerResponse {
+        serverRequest.awaitFormData().toSingleValueMap().let {
+            ownerRepository.save(Owner(
+                id = it["id"]?.toLong(),
+                firstName = it["firstName"]!!,
+                lastName = it["lastName"]!!,
+                address = it["address"]!!,
+                telephone = it["telephone"]!!,
+                city = it["city"]!!))
+        }
+        return indexPage()
+    }
+
+    //
+//    = serverRequest.body(BodyExtractors.toFormData())
+//            .flatMap {
+//                val formData = it.toSingleValueMap()
+//                ownerRepository.save(Owner(
+//                               id = formData["id"] ?: UUID.randomUUID().toString(),
+//                        firstName = formData["firstName"]!!,
+//                         lastName = formData["lastName"]!!,
+//                          address = formData["address"]!!,
+//                        telephone = formData["telephone"]!!,
+//                             city = formData["city"]!!))
+//            }
+//            .then(indexPage())
+//
+    suspend fun edit(serverRequest: ServerRequest): ServerResponse {
+        val form = serverRequest.awaitFormData().toSingleValueMap()
+        return Owner(id = form["id"]?.toLong(),
+            firstName = form["firstName"]!!,
+            lastName = form["lastName"]!!,
+            address = form["address"]!!,
+            telephone = form["telephone"]!!,
+            city = form["city"]!!)
+//                    ?.let {
+//                        println("1>>>> result: $it")
+//                        ownerRepository.findById(it)
+//                    }
+            .let {
+                println("2>>>> result: $it")
+                ownerRepository.save(it)
+            }?.let {
+                println("3>>>> result: $it")
+                ServerResponse.permanentRedirect(URI.create("/owners/view?id=${it.id}")).buildAndAwait()
+            } // ok().renderAnyAndAwait("owners/edit", it) }
+            ?: (ok().bodyValueAndAwait("test"))
+    }
+
     suspend fun indexPageWithQuery(query: String) = ok().html().renderAndAwait("owners/index",
-            mapOf("owners" to findByNameLike(query)
-                    .map { Pair(it, emptySet<Pet>()) },
-                    "pets" to petRepository.findAll().collectMultimap { it.owner }))
+        mapOf("owners" to ownerRepository.findByNameLike(query)
+            .map { Pair(it, emptySet<Pet>()) },
+            "pets" to petRepository.findAll().collectMultimap { it.owner }))
 
-    @ExperimentalCoroutinesApi
     suspend fun indexPage(): ServerResponse = ok().html().renderAndAwait("owners/index",
-            mapOf("owners" to ownersRepository.findAll().map { Pair(it, emptySet<Pet>()) },
-                    "pets" to petRepository.findAll().collectMultimap { it.owner }))
+        mapOf("owners" to ownerRepository.findAll().map { Pair(it, emptySet<Pet>()) },
+            "pets" to petRepository.findAll().collectMultimap { it.owner }))
+//
+//
 
-    fun findByNameLike(query: String) = mongoTemplate.find(
-            Query(Criteria().orOperator(
-                    where("firstName").regex(query, "i"),
-                    where("lastName").regex(query, "i"))), Owner::class.java)
+    private suspend fun <T, K> Flow<T>.collectMultimap(keySelector: (T) -> K): Map<K, List<T>> {
+        return this
+            .toList()
+            .groupBy(keySelector)
+    }
 
 }
+

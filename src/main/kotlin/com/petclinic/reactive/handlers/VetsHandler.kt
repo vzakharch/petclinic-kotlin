@@ -1,7 +1,6 @@
 package com.petclinic.reactive.handlers
 
 import com.petclinic.reactive.html
-import com.petclinic.reactive.model.Vet
 import com.petclinic.reactive.repository.SpecialityRepository
 import com.petclinic.reactive.repository.VetRepository
 import org.springframework.stereotype.Component

@@ -1,7 +1,6 @@
 package com.petclinic.reactive.handlers
 
 import com.petclinic.reactive.html
-import com.petclinic.reactive.model.Speciality
 import com.petclinic.reactive.repository.SpecialityRepository
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.BodyExtractors

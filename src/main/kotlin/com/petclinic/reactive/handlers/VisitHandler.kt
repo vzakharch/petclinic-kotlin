@@ -1,12 +1,10 @@
 package com.petclinic.reactive.handlers
 
 import com.petclinic.reactive.html
-import com.petclinic.reactive.model.Visit
-import com.petclinic.reactive.repository.OwnersRepository
+import com.petclinic.reactive.repository.OwnerRepository
 import com.petclinic.reactive.repository.PetRepository
 import com.petclinic.reactive.repository.VisitRepository
 import com.petclinic.reactive.toLocalDate
-import com.petclinic.reactive.toStr
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.BodyExtractors
 import org.springframework.web.reactive.function.server.ServerRequest
@@ -16,7 +14,7 @@ import java.util.UUID
 @Component
 class VisitHandler(val visitRepository: VisitRepository,
                    val petRepository: PetRepository,
-                   val ownersRepository: OwnersRepository,
+                   val ownersRepository: OwnerRepository,
                    val ownersHandler: OwnersHandler) {
 
     fun addPage(serverRequest: ServerRequest) =
