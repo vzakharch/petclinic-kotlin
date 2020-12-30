@@ -33,5 +33,5 @@ interface VisitRepository : CoroutineCrudRepository<Visit,Long> {
     fun findByPetId(petId: Long): Flow<Visit>
 
     //@Query("SELECT * FROM visit WHERE pet_id in (:ids)")
-    fun findAllByPetIds(ids: Iterable<Long>): Flow<Visit>
+    fun findAllByPetId(ids: Iterable<Long>): Flow<Visit>
 }

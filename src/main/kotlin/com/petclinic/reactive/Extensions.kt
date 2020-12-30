@@ -15,7 +15,6 @@ fun ServerResponse.BodyBuilder.textEventStream() = contentType(TEXT_EVENT_STREAM
 fun ServerResponse.BodyBuilder.html() = contentType(TEXT_HTML)
 
 // Date Extension methods
-
 fun LocalDate.toStr(format:String = "dd/MM/yyyy") = DateTimeFormatter.ofPattern(format).format(this)
 
 fun String.toLocalDate(format:String = "dd/MM/yyyy") = LocalDate.parse(this, DateTimeFormatter.ofPattern(format))

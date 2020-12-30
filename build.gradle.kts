@@ -27,6 +27,8 @@ dependencies {
 		exclude(group = "org.junit.vintage", module = "junit-vintage-engine")
 	}
 	testImplementation("io.projectreactor:reactor-test")
+	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")
+	testImplementation("io.zonky.test:embedded-database-spring-test:1.6.1")
 }
 
 tasks.withType<Test> {

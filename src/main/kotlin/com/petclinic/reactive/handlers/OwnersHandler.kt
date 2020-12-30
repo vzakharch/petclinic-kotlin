@@ -59,7 +59,7 @@ class OwnersHandler(val ownerRepository: OwnerRepository,
             }?: ServerResponse.notFound().buildAndAwait()
 
     suspend fun petVisits(petIds: List<Long>) =
-        visitRepository.findAllByPetIds(petIds)
+        visitRepository.findAllByPetId(petIds)
             .toList()
             .groupBy { it.petId }
 
