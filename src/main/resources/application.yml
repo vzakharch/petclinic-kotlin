@@ -1,0 +1,8 @@
+#spring:
+#  r2dbc:
+#    url: r2dbc:postgresql://localhost:5432
+#    username: postgres
+#    password: postgres
+spring:
+  jpa:
+    generate-ddl: true
